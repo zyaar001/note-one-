@@ -1,0 +1,40 @@
+{
+  "entities": {
+    "Note": {
+      "title": "Note Analysis",
+      "description": "A student's note and its AI-generated explanation.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the topic or note." },
+        "originalContent": { "type": "string", "description": "Original text input or extracted text." },
+        "explanation": { "type": "string", "description": "AI-generated explanation." },
+        "ownerId": { "type": "string", "description": "The UID of the user who owns the note." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when added." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Timestamp when last updated." },
+        "pdfUrl": { "type": "string" },
+        "pdfName": { "type": "string" }
+      },
+      "required": ["title", "originalContent", "explanation", "ownerId", "createdAt", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User preferences and metadata.",
+      "type": "object",
+      "properties": {
+        "voicePreference": { "type": "string", "description": "User's preferred voice tone." },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["updatedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}/notes/{noteId}": {
+      "schema": { "$ref": "#/entities/Note" },
+      "description": "User notes structured as a subcollection."
+    },
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile document."
+    }
+  }
+}

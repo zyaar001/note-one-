@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidNote(data) {
+      return data.keys().hasAll(['title', 'originalContent', 'explanation', 'ownerId', 'createdAt', 'updatedAt']) 
+          && data.keys().hasOnly(['title', 'originalContent', 'explanation', 'ownerId', 'createdAt', 'updatedAt', 'pdfUrl', 'pdfName'])
+          && data.title is string && data.title.size() <= 200
+          && data.originalContent is string && data.originalContent.size() <= 100000
+          && data.explanation is string && data.explanation.size() <= 100000
+          && data.ownerId is string && data.ownerId.size() <= 128
+          && data.ownerId == request.auth.uid
+          && data.createdAt is timestamp
+          && data.updatedAt is timestamp
+          && (!('pdfUrl' in data) || (data.pdfUrl is string && data.pdfUrl.size() <= 2000))
+          && (!('pdfName' in data) || (data.pdfName is string && data.pdfName.size() <= 500));
+    }
+
+    function isValidProfile(data) {
+      return data.keys().hasAll(['updatedAt'])
+          && data.keys().hasOnly(['updatedAt', 'voicePreference'])
+          && data.updatedAt is timestamp
+          && (!('voicePreference' in data) || (data.voicePreference is string && data.voicePreference.size() <= 1000));
+    }
+
+    match /users/{userId} {
+      allow read: if isVerified() && userId == request.auth.uid;
+      allow create: if isVerified() 
+                    && userId == request.auth.uid
+                    && isValidId(userId)
+                    && isValidProfile(incoming())
+                    && incoming().updatedAt == request.time;
+      allow update: if isVerified()
+                    && userId == request.auth.uid
+                    && isValidId(userId)
+                    && isValidProfile(incoming())
+                    && incoming().updatedAt == request.time
+                    && (
+                      incoming().diff(existing()).affectedKeys().hasOnly(['voicePreference', 'updatedAt'])
+                    );
+    }
+
+    match /users/{userId}/notes/{noteId} {
+      allow read: if isVerified() && userId == request.auth.uid && existing().ownerId == request.auth.uid;
+      allow list: if isVerified() && userId == request.auth.uid && resource.data.ownerId == request.auth.uid;
+      
+      allow create: if isVerified() 
+                    && userId == request.auth.uid
+                    && isValidId(userId)
+                    && isValidId(noteId)
+                    && isValidNote(incoming())
+                    && incoming().createdAt == request.time
+                    && incoming().updatedAt == request.time;
+
+      allow update: if isVerified() 
+                    && userId == request.auth.uid
+                    && isValidId(userId)
+                    && isValidId(noteId)
+                    && existing().ownerId == request.auth.uid
+                    && isValidNote(incoming())
+                    && incoming().createdAt == existing().createdAt
+                    && incoming().updatedAt == request.time
+                    && (
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'originalContent', 'explanation', 'updatedAt', 'pdfUrl', 'pdfName'])
+                    );
+
+      allow delete: if isVerified() 
+                    && userId == request.auth.uid
+                    && isValidId(userId)
+                    && isValidId(noteId)
+                    && existing().ownerId == request.auth.uid;
+    }
+  }
+}
